@@ -60,18 +60,26 @@ typedef struct flashdata_Tag
     unsigned char data[2048-14];              // the data itself
 }flashdata_T;
 
-typedef enum cs_parser_tag
+typedef enum cs_parser_Tag
 {
     CS_LOOKING_FOR_BLOCK_START,
     CS_LOOKING_FOR_BLOCK_NUMBER,
     CS_READ_METADATA,
     CS_READ_DATA_BLOCK
-}cs_parser_t;
+}cs_parser_T;
+
+typedef struct statistics_Tag
+{
+    uint16_t blockCntr;     // block counter for statistics
+    uint16_t blockErrCntr;  // block error counter for statistics
+    uint16_t lineCntr;      // line counter for statistics
+}statistics_T;
 
 /*===========================================================================*
  * Local Variables Definitions
  *===========================================================================*/
-flashdata_T flashdata;  // The flashdata information from each block
+flashdata_T flashdata;      // The flashdata information from each block
+statistics_T statistics;    // Information to printout on application finish
 
 /*===========================================================================*
  * Local Function Prototypes
@@ -140,25 +148,25 @@ int process_file(FILE* file)
     char line[50];              // Buffer to store each line
     unsigned int bytes[16];     // Buffer to perform the data analysis
     int block_seq = 0;          // Check the sequence of block in the file
-    int block_counter = 0;      // block counter for statistics
-    int block_err_counter = 0;  // block error counter for statistics
-    int line_counter = 0;       // line counter for statistics
     int block_number;           // The parsed block number in the label
     int block_number_aux;       // The parsed block number
     int data_counter;
-    cs_parser_t cs_parser = CS_LOOKING_FOR_BLOCK_START;  // The state variable for the parser
+    cs_parser_T cs_parser = CS_LOOKING_FOR_BLOCK_START;  // The state variable for the parser
     
+    if (file == NULL)
+    {
+        return -1;
+    }
+
     // Read every line through the file
     while (fgets(line, sizeof(line), file) != NULL) 
     {
         // Remove trailing newline character if present
         line[strcspn(line, "\n")] = 0; 
-        
-        // Increment the line counter
-        line_counter++;
 
         // Print the line while parsing
-        printf("Parsed line %d: \t\t %s\n", line_counter, line);
+        statistics.lineCntr++;
+        printf("Parsed line %d: \t\t %s\n", statistics.lineCntr, line);
 
         // The parser
         switch(cs_parser)
@@ -168,12 +176,10 @@ int process_file(FILE* file)
                 if(0 == strncmp(line,"BLK", 3))
                 {
                     // Count the number of block
-                    // could be a good block or a corrupted one
-                    block_counter++;
+                    statistics.blockCntr++;
 
                     // Read the block number in the block start label
                     sscanf(&line[4], "%d", &block_number);
-                    //printf("block number is: %d\n", block_number);
 
                     // Move to the next state of the parser
                     cs_parser = CS_LOOKING_FOR_BLOCK_NUMBER;
@@ -189,7 +195,7 @@ int process_file(FILE* file)
                 else
                 {
                     // ERROR detected! Discard the whole block!                    
-                    block_err_counter++;
+                    statistics.blockErrCntr++;
                     printf("Error: Invalid Block number!\n");
                     cs_parser = CS_LOOKING_FOR_BLOCK_START;
                 }
@@ -220,14 +226,14 @@ int process_file(FILE* file)
                     if (flashdata.filename_id != 0x02)
                     {
                         // ERROR detected! Discard the whole block!
-                        block_err_counter++;
+                        statistics.blockErrCntr++;
                         printf("Error: Invalid filename_id.\n");
                         cs_parser = CS_LOOKING_FOR_BLOCK_START;
                     }
                     else if (flashdata.data_length > (2048-14))
                     {
                         // ERROR detected! Discard the whole block!
-                        block_err_counter++;
+                        statistics.blockErrCntr++;
                         printf("Error: Invalid data_length.\n");
                         cs_parser = CS_LOOKING_FOR_BLOCK_START;
                     }
@@ -256,7 +262,7 @@ int process_file(FILE* file)
                             else
                             {
                                 // ERROR detected! Discard the whole block!                    
-                                block_err_counter++;
+                                statistics.blockErrCntr++;
                                 printf("Error: Invalid Block sequence!\n");
                                 cs_parser = CS_LOOKING_FOR_BLOCK_START;
                             } 
@@ -266,7 +272,7 @@ int process_file(FILE* file)
                 else 
                 {
                     // ERROR detected! Discard the whole block!
-                    block_err_counter++;
+                    statistics.blockErrCntr++;
                     printf("Error: Could not read all fields!\n");
                     cs_parser = CS_LOOKING_FOR_BLOCK_START;                    
                 }
@@ -285,7 +291,10 @@ int process_file(FILE* file)
                         if(data_counter >= flashdata.data_length)
                         {
                             // All the records has been read, go for the next block
-                            process_data_records(flashdata.number_records, flashdata.data);
+                            if(-1 == process_data_records(flashdata.number_records, flashdata.data))
+                            {
+                                return -1;
+                            }
                             cs_parser = CS_LOOKING_FOR_BLOCK_START;
                             break;
                         }
@@ -294,7 +303,7 @@ int process_file(FILE* file)
                 else 
                 {
                     // ERROR detected! Discard the whole block!
-                    block_err_counter++;
+                    statistics.blockErrCntr++;
                     printf("Error: Could not read all fields!\n");
                     cs_parser = CS_LOOKING_FOR_BLOCK_START;
                 }
@@ -304,8 +313,8 @@ int process_file(FILE* file)
                 break;
         }
     }
-    printf("Number of blocks: %d\n", block_counter);
-    printf("Number of blocks error: %d\n", block_err_counter);
+
+    return 0;
 }
 
 /***************************************************************************//**
@@ -329,8 +338,12 @@ int main()
         return -1;
     }
 
-    process_file(fInput);
+    int ret = process_file(fInput);
 
     fclose(fInput);
-    return 0;
+    
+    printf("Number of blocks: %d\n", statistics.blockCntr);
+    printf("Number of blocks error: %d\n", statistics.blockErrCntr);
+
+    return ret;
 }

@@ -1,0 +1,55 @@
+struct flashdata
+{
+    uint16 filename_id;                     // number for file
+    uint32 sequence_in_file;                // file sequence number
+    uint16 number_records;                  // recs in block
+    uint16 data_length;                     // data length
+    uint16 flags;                           // unused presently
+    unsigned char compression_type;         // unused presently
+    unsigned char spare;                    // unused presently
+    unsigned char data[2048-14];            // the data itself
+};
+
+02 00 D8 00 00 00 58 00 E7 07 00 00 00 00
+|  |  |  |  |  |  |  |  |  |  |  |  |  X Not used
+|  |  |  |  |  |  |  |  |  |  |  |  X Not used 
+|  |  |  |  |  |  |  |  |  |  |  X Not used 
+|  |  |  |  |  |  |  |  |  |  X Not used 
+|  |  |  |  |  |  |  |  |  |  
+|  |  |  |  |  |  |  |  |  |-----------------data_length[0]  
+|  |  |  |  |  |  |  |  |--------------------data_length[1]  
+|  |  |  |  |  |  |  |  
+|  |  |  |  |  |  |  |-----------------------number_records[0]
+|  |  |  |  |  |  |--------------------------number_records[1]
+|  |  |  |  |  |
+|  |  |  |  |  |-----------------------------sequence_in_file[0]
+|  |  |  |  |--------------------------------sequence_in_file[1]
+|  |  |  |-----------------------------------sequence_in_file[2]
+|  |  |--------------------------------------sequence_in_file[3]
+|  |
+|  |-----------------------------------------filename_id[0]
+|--------------------------------------------filename_id[1]
+
+Not all the blocks are available in the file (There're some gaps in the block count)
+
+Record structure:
+<length><flags><len2> <data.......>
+Some records example from the first block:
+28 01 25 EF A4 21 A2 00 5A 26 
+93 3F F8 54 00 02 10 DF 08 C9 
+70 1A B6 62 0A B0 00 3B A4 1F 
+A4 84 01 42 52 46 51 67 D0 FE 
+
+04 01 01 ED
+
+28 01 25 EF A4 21 A3 00 4A 83 
+11 3F F8 54 00 02 53 DF 08 C9 
+70 1A B6 31 0A B0 31 5B A0 1F 
+A4 84 01 12 08 70 39 43 47 ED
+
+04 01 01 ED
+
+27 01 24 EF A4 21 A4 00 FA 54 
+01 04 60 FA 54 01 03 70 DF 08 
+C9 70 1A B6 12 0A B0 50 5B A0 
+94 48 15 02 56 50 11 10 ED

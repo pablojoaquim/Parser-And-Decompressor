@@ -198,29 +198,6 @@ int decompress_data(unsigned char *compressed, int compressed_len, char *output,
 }
 
 /***************************************************************************//**
-* @fn         remove_unwanted_characters
-* @brief      Helper function to remove \t \n and spaces
-* @param [in] hex_str - The input string
-* @param [in] bytes - The array to hold the output
-* @param [in] max_bytes - The characters limit to read from the hex_str
-* @return     byte_count
-******************************************************************************/
-int remove_unwanted_characters(unsigned char *hex_str, unsigned char *bytes, int max_bytes) 
-{
-    int i = 0;
-    int byte_count = 0;
-    while (byte_count <= max_bytes)
-    {
-        if(hex_str[i] != ' ' && hex_str[i] != '\t' && hex_str[i] != '\n')
-        {
-            bytes[byte_count++] = hex_str[i];
-        }
-        i++;
-    }
-    return byte_count;
-}
-
-/***************************************************************************//**
 * @fn         process_data_records
 * @brief      Process all the data records found in a block.
 * @param [in] totalRecords - The number of records in the data
@@ -246,9 +223,14 @@ int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords, FIL
         pos += recordDataLength;
         // Get the length of the record
         recordDataLength = pDataRecords[pos];
-        printf("pos: %d", pos);
-        printf("recordCnt: %d", recordCnt);
-        printf("recordDataLength: %d", recordDataLength);
+        // printf("pos: %d\n", pos);
+        // printf("recordCnt: %d\n", recordCnt);
+        // printf("recordDataLength: %d\n", recordDataLength);
+        // for (int i=0; i<recordDataLength; i++)
+        // {
+        //     printf("%X ",pDataRecords[pos+i] );
+        // }
+        // printf("\n");
 
         // Decompress the data. Remember the record data starts at the 3rd position!
         int output_len = decompress_data(&pDataRecords[pos+3], recordDataLength-3, output, sizeof(output));

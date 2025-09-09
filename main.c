@@ -92,6 +92,144 @@ statistics_T statistics;    // Information to printout on application finish
 /*===========================================================================*
  * Function Definitions
  *===========================================================================*/
+/***************************************************************************//**
+* @fn         nibble_to_char
+* @brief      Nibble to character mapping table
+* @param [in] nibble - The nibble to convert
+* @return     The char value
+******************************************************************************/
+char nibble_to_char(int nibble) 
+{
+    switch(nibble) 
+    {
+        case 0: return '0';
+        case 1: return '1';
+        case 2: return '2';
+        case 3: return '3';
+        case 4: return '4';
+        case 5: return '5';
+        case 6: return '6';
+        case 7: return '7';
+        case 8: return '8';
+        case 9: return '9';
+        case 0xA: return ' ';
+        case 0xB: return ':';
+        case 0xC: return '/';
+        case 0xD: return '\r';
+        case 0xE: return '\n';
+        case 0xF: return 0; // Special case - literal character indicator
+        default: return '?';
+    }
+}
+
+/***************************************************************************//**
+* @fn         decompress_data
+* @brief      Apply the decompress algorithm
+* @param [in] compressed - The byte array of the compressed info
+* @param [in] compressed_len - The max length to read from the input
+* @param [in] output - The byte array to hold the decompressed output
+* @param [in] max_output_len - The limit to hold in the output array
+* @return     The actual length of the output
+******************************************************************************/
+int decompress_data(unsigned char *compressed, int compressed_len, char *output, int max_output_len) {
+    int nibbles[compressed_len * 2];
+    int nibble_count = 0;
+    int output_pos = 0;
+    
+    // Step 1: Extract nibbles from bytes (low nibble first, high nibble second)
+    for(int i = 0; i < compressed_len; i++) 
+    {
+        nibbles[nibble_count++] = compressed[i] & 0x0F;  // Low nibble
+        nibbles[nibble_count++] = (compressed[i] & 0xF0) >> 4;  // High nibble
+    }
+    
+    // Step 2: Remove padding F from the end if present
+    if(nibble_count > 0 && nibbles[nibble_count - 1] == 0xF) 
+    {
+        nibble_count--;
+    }
+    
+    // Step 3: Process nibbles
+    int i = 0;
+    while(i < nibble_count && output_pos < max_output_len - 1) 
+    {
+        if(nibbles[i] == 0xF) 
+        {
+            // Literal character - need two more nibbles
+            if(i + 2 >= nibble_count) 
+            {
+                printf("Error: Incomplete literal character sequence\n");
+                break;
+            }
+            
+            // Combine next two nibbles (reversed for Intel endianness)
+            unsigned char literal_char = (nibbles[i+2] << 4) | nibbles[i+1];
+            
+            // Check if it's a compressed space sequence
+            if(literal_char >= 0x80)
+            {
+                int space_count = literal_char - 0x80;
+                for(int j = 0; j < space_count && output_pos < max_output_len - 1; j++) 
+                {
+                    output[output_pos++] = ' ';
+                }
+            } 
+            else 
+            {
+                output[output_pos++] = literal_char;
+            }
+            
+            i += 3; // Skip F and two nibbles
+        } 
+        else 
+        {
+            // Regular nibble mapping
+            char ch = nibble_to_char(nibbles[i]);
+            if(ch != 0) 
+            {
+                output[output_pos++] = ch;
+            }
+            i++;
+        }
+    }
+    
+    output[output_pos] = '\0';
+    return output_pos;
+}
+
+/***************************************************************************//**
+* @fn         parse_hex_string
+* @brief      Helper function to parse hex string into byte array
+* @param [in] hex_str - The input string containing only hex characters
+* @param [in] bytes - The array to hold the output
+* @param [in] max_bytes - The characters limit to read from the hex_str
+* @return     byte_count
+******************************************************************************/
+int parse_hex_string(const char *hex_str, unsigned char *bytes, int max_bytes) {
+    int byte_count = 0;
+    int len = strlen(hex_str);
+    
+    for(int i = 0; i < len && byte_count < max_bytes; i++) 
+    {
+        if(hex_str[i] == ' ' || hex_str[i] == '\t' || hex_str[i] == '\n') 
+        {
+            continue; // Skip whitespace
+        }
+        
+        // Read two hex digits
+        if(i + 1 < len) 
+        {
+            unsigned int byte_val;
+            if(sscanf(&hex_str[i], "%2x", &byte_val) == 1)
+            {
+                bytes[byte_count++] = (unsigned char)byte_val;
+                i++; // Skip the second hex digit
+            }
+        }
+    }
+    
+    return byte_count;
+}
 
 /***************************************************************************//**
 * @fn         process_data_records
@@ -105,7 +243,7 @@ int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords)
     int recordCnt = 0;
     int recordDataLength = 0;
     int pos = 0;
-    unsigned char aux;
+    // unsigned char aux;
 
     for(int recordCnt=0; recordCnt < totalRecords; recordCnt++)
     {

@@ -1,8 +1,53 @@
+/*===========================================================================*/
+/**
+ * @file main.c
+ *
+ *  Data parser and decompressor
+ *  This is a technical challenge for Asentria
+ *
+ *------------------------------------------------------------------------------
+ *
+ *------------------------------------------------------------------------------
+ *
+ * @section DESC DESCRIPTION:
+ *
+ * @todo Divide this file content using an abstraction layers concept
+ *
+ * @section ABBR ABBREVIATIONS:
+ *   - @todo List any abbreviations, precede each with a dash ('-').
+ *
+ * @section TRACE TRACEABILITY INFO:
+ *   - Design Document(s):
+ *     - @todo Update list of design document(s).
+ *
+ *   - Requirements Document(s):
+ *     - @todo Update list of requirements document(s)
+ *
+ *   - Applicable Standards (in order of precedence: highest first):
+ *     - @todo Update list of other applicable standards
+ *
+ */
+/*==========================================================================*/
+
+/*===========================================================================*
+ * Header Files
+ *===========================================================================*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
+/*===========================================================================*
+ * Local Preprocessor #define Constants
+ *===========================================================================*/
+
+/*===========================================================================*
+ * Local Preprocessor #define MACROS
+ *===========================================================================*/
+
+/*===========================================================================*
+ * Local Type Declarations
+ *===========================================================================*/
 typedef struct flashdata_Tag
 {
     uint16_t filename_id;                     // number for file
@@ -23,10 +68,75 @@ typedef enum cs_parser_tag
     CS_READ_DATA_BLOCK
 }cs_parser_t;
 
-int main() 
+/*===========================================================================*
+ * Local Variables Definitions
+ *===========================================================================*/
+flashdata_T flashdata;  // The flashdata information from each block
+
+/*===========================================================================*
+ * Local Function Prototypes
+ *===========================================================================*/
+
+/*===========================================================================*
+ * Local Inline Function Definitions and Function-Like Macros
+ *===========================================================================*/
+
+/*===========================================================================*
+ * Function Definitions
+ *===========================================================================*/
+
+/***************************************************************************//**
+* @fn         process_data_records
+* @brief      Process all the data records found in a block.
+* @param [in] totalRecords - The number of records in the data
+* @param [in] pDataRecords - A pointer to the data content
+* @return     0 -Success, -1 -Error
+******************************************************************************/
+int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords)
 {
-    // Control variables
-    FILE *file;                 // file* necessary for file operations
+    int recordCnt = 0;
+    int recordDataLength = 0;
+    int pos = 0;
+    unsigned char aux;
+
+    for(int recordCnt=0; recordCnt < totalRecords; recordCnt++)
+    {
+        // Move through the data array
+        pos += recordDataLength;
+        // Get the length of the record
+        recordDataLength = pDataRecords[pos];
+        printf("pos: %d", pos);
+        printf("recordCnt: %d", recordCnt);
+        printf("recordDataLength: %d", recordDataLength);
+        // The record data starts at the 3rd position
+        for (int i=3; i<recordDataLength; i++)
+        {
+            printf("%x ", pDataRecords[pos+i]);
+        }
+        printf("\r\n");
+    }
+    return 0;
+    // FILE *file;
+    // file = fopen("aux.data", "w+");
+    // if (file == NULL) 
+    // {
+    //     perror("Error opening file for write");
+    //     return -1;
+    // }
+    // fputs(pFlashdata->data, file);
+    // fclose(file);
+}
+
+/***************************************************************************//**
+* @fn         process_file
+* @brief      The file provided is parsed using a state-machine
+*             Several error are considered, in such case the function
+*             return an error and show a printout describing it
+* @param [in] file - A FILE* to the file to be parsed
+* @return     0 -Success, -1 -Error
+******************************************************************************/
+int process_file(FILE* file)
+{
     char line[50];              // Buffer to store each line
     unsigned int bytes[16];     // Buffer to perform the data analysis
     int block_seq = 0;          // Check the sequence of block in the file
@@ -36,19 +146,8 @@ int main()
     int block_number;           // The parsed block number in the label
     int block_number_aux;       // The parsed block number
     int data_counter;
-    flashdata_T flashdata;      // The flashdata information from each block
     cs_parser_t cs_parser = CS_LOOKING_FOR_BLOCK_START;  // The state variable for the parser
     
-    // Open the file for reading operations
-    // The filename is hardcoded. An improvement could be 
-    // to receive the name as an args
-    file = fopen("INTDATA", "r");
-    if (file == NULL) 
-    {
-        perror("Error opening file");
-        return -1;
-    }
-
     // Read every line through the file
     while (fgets(line, sizeof(line), file) != NULL) 
     {
@@ -186,6 +285,7 @@ int main()
                         if(data_counter >= flashdata.data_length)
                         {
                             // All the records has been read, go for the next block
+                            process_data_records(flashdata.number_records, flashdata.data);
                             cs_parser = CS_LOOKING_FOR_BLOCK_START;
                             break;
                         }
@@ -204,10 +304,33 @@ int main()
                 break;
         }
     }
-
-    fclose(file);
-
     printf("Number of blocks: %d\n", block_counter);
     printf("Number of blocks error: %d\n", block_err_counter);
+}
+
+/***************************************************************************//**
+* @fn         main
+* @brief      The main entry point
+* @param [in] void
+* @return     0 -success, -1 -Error
+******************************************************************************/
+int main() 
+{
+    // Control variables
+    FILE *fInput;
+    
+    // Open the file for reading operations
+    // The filename is hardcoded. An improvement could be 
+    // to receive the name as an args
+    fInput = fopen("INTDATA", "r");
+    if (fInput == NULL) 
+    {
+        perror("Error opening file");
+        return -1;
+    }
+
+    process_file(fInput);
+
+    fclose(fInput);
     return 0;
 }

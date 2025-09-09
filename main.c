@@ -28,14 +28,14 @@ int main()
     // Control variables
     FILE *file;                 // file* necessary for file operations
     char line[50];              // Buffer to store each line
-    unsigned int bytes[14];     // Buffer to store the flashdata
+    unsigned int bytes[16];     // Buffer to perform the data analysis
     int block_seq = 0;          // Check the sequence of block in the file
     int block_counter = 0;      // block counter for statistics
-    int block_ok_counter = 0;   // block ok counter for statistics
     int block_err_counter = 0;  // block error counter for statistics
     int line_counter = 0;       // line counter for statistics
     int block_number;           // The parsed block number in the label
     int block_number_aux;       // The parsed block number
+    int data_counter;
     flashdata_T flashdata;      // The flashdata information from each block
     cs_parser_t cs_parser = CS_LOOKING_FOR_BLOCK_START;  // The state variable for the parser
     
@@ -83,33 +83,9 @@ int main()
 
             case CS_LOOKING_FOR_BLOCK_NUMBER:
                 sscanf(&line[0], "%d", &block_number_aux);
-                //printf("block number really is: %d\n", block_number_aux);
                 if (block_number_aux == block_number)
                 {
                     cs_parser = CS_READ_METADATA;
-                    // // If this is the firts block store that block number
-                    // if (block_seq == 0)
-                    // {
-                    //     block_seq = block_number;
-                    //     cs_parser = CS_READ_METADATA;
-                    // }
-                    // else
-                    // {   
-                    //     if ((block_seq+1) != block_number)
-                    //     {
-                    //         // ERROR detected! Discard the whole block!                    
-                    //         block_err_counter++;
-                    //         printf("block_seq: %d", block_seq);
-                    //         printf("Error: Invalid Block sequence!\n");
-                    //         cs_parser = CS_LOOKING_FOR_BLOCK_START;
-                    //         return -1;                           
-                    //     }
-                    //     else
-                    //     {
-                    //         block_seq++;
-                    //         cs_parser = CS_READ_METADATA;
-                    //     }
-                    // }
                 }
                 else
                 {
@@ -121,11 +97,9 @@ int main()
                 break;
 
             case CS_READ_METADATA:
-                int fields_read = sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x",
+                if (16 == sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
                                     &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5], &bytes[6], &bytes[7], &bytes[8],
-                                    &bytes[9], &bytes[10], &bytes[11], &bytes[12], &bytes[13]);
-                                    
-                if (fields_read == 14) 
+                                    &bytes[9], &bytes[10], &bytes[11], &bytes[12], &bytes[13], &bytes[14], &bytes[15])) 
                 {
                     // The data is little-endian, so we combine the bytes in reverse order.
                     flashdata.filename_id = (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
@@ -163,6 +137,10 @@ int main()
                         if (block_seq == 0)
                         {
                             block_seq = flashdata.sequence_in_file;
+                            // Read the last 2 bytes of the first row
+                            flashdata.data[0] = bytes[14];
+                            flashdata.data[1] = bytes[15];
+                            data_counter = 2;
                             cs_parser = CS_READ_DATA_BLOCK;
                         }
                         else
@@ -170,6 +148,10 @@ int main()
                             if (flashdata.sequence_in_file > block_seq )
                             {
                                 block_seq = flashdata.sequence_in_file;
+                                // Read the last 2 bytes of the first row
+                                flashdata.data[0] = bytes[14];
+                                flashdata.data[1] = bytes[15];
+                                data_counter = 2;
                                 cs_parser = CS_READ_DATA_BLOCK;
                             }
                             else
@@ -186,32 +168,46 @@ int main()
                 {
                     // ERROR detected! Discard the whole block!
                     block_err_counter++;
-                    printf("Error: Could not read all fields. Read %d fields instead of 7.\n", fields_read);
+                    printf("Error: Could not read all fields!\n");
                     cs_parser = CS_LOOKING_FOR_BLOCK_START;                    
                 }
                 break;     
 
             case CS_READ_DATA_BLOCK:
-
+                if (16 == sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
+                                    &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5], &bytes[6], &bytes[7], &bytes[8],
+                                    &bytes[9], &bytes[10], &bytes[11], &bytes[12], &bytes[13], &bytes[14], &bytes[15])) 
+                {
+                    for(int i=0; i<16; i++)
+                    {
+                        flashdata.data[data_counter] = bytes[i];
+                        data_counter++;
+                        // Check for the end of block condition
+                        if(data_counter >= flashdata.data_length)
+                        {
+                            // All the records has been read, go for the next block
+                            cs_parser = CS_LOOKING_FOR_BLOCK_START;
+                            break;
+                        }
+                    }
+                }
+                else 
+                {
+                    // ERROR detected! Discard the whole block!
+                    block_err_counter++;
+                    printf("Error: Could not read all fields!\n");
+                    cs_parser = CS_LOOKING_FOR_BLOCK_START;
+                }
                 break;   
 
             default:
                 break;
         }
-
-
-        // More complex parsing logic would go here, e.g., using sscanf or strtok
-        // int id;
-        // char name[50];
-        // if (sscanf(line, "%d,%s", &id, name) == 2) {
-        //     printf("ID: %d, Name: %s\n", id, name);
-        // }
     }
 
     fclose(file);
 
     printf("Number of blocks: %d\n", block_counter);
-    printf("Number of blocks ok: %d\n", block_ok_counter);
     printf("Number of blocks error: %d\n", block_err_counter);
     return 0;
 }

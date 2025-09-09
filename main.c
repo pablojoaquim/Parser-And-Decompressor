@@ -198,36 +198,25 @@ int decompress_data(unsigned char *compressed, int compressed_len, char *output,
 }
 
 /***************************************************************************//**
-* @fn         parse_hex_string
-* @brief      Helper function to parse hex string into byte array
-* @param [in] hex_str - The input string containing only hex characters
+* @fn         remove_unwanted_characters
+* @brief      Helper function to remove \t \n and spaces
+* @param [in] hex_str - The input string
 * @param [in] bytes - The array to hold the output
 * @param [in] max_bytes - The characters limit to read from the hex_str
 * @return     byte_count
 ******************************************************************************/
-int parse_hex_string(const char *hex_str, unsigned char *bytes, int max_bytes) {
+int remove_unwanted_characters(unsigned char *hex_str, unsigned char *bytes, int max_bytes) 
+{
+    int i = 0;
     int byte_count = 0;
-    int len = strlen(hex_str);
-    
-    for(int i = 0; i < len && byte_count < max_bytes; i++) 
+    while (byte_count <= max_bytes)
     {
-        if(hex_str[i] == ' ' || hex_str[i] == '\t' || hex_str[i] == '\n') 
+        if(hex_str[i] != ' ' && hex_str[i] != '\t' && hex_str[i] != '\n')
         {
-            continue; // Skip whitespace
+            bytes[byte_count++] = hex_str[i];
         }
-        
-        // Read two hex digits
-        if(i + 1 < len) 
-        {
-            unsigned int byte_val;
-            if(sscanf(&hex_str[i], "%2x", &byte_val) == 1)
-            {
-                bytes[byte_count++] = (unsigned char)byte_val;
-                i++; // Skip the second hex digit
-            }
-        }
+        i++;
     }
-    
     return byte_count;
 }
 
@@ -236,14 +225,20 @@ int parse_hex_string(const char *hex_str, unsigned char *bytes, int max_bytes) {
 * @brief      Process all the data records found in a block.
 * @param [in] totalRecords - The number of records in the data
 * @param [in] pDataRecords - A pointer to the data content
+* @param [in] fOutput - A FILE* to store the result
 * @return     0 -Success, -1 -Error
 ******************************************************************************/
-int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords)
+int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords, FILE* fOutput)
 {
+    int pos = 0;
     int recordCnt = 0;
     int recordDataLength = 0;
-    int pos = 0;
-    // unsigned char aux;
+    char output[1024];
+
+    if (fOutput == NULL)
+    {
+        return -1;
+    }
 
     for(int recordCnt=0; recordCnt < totalRecords; recordCnt++)
     {
@@ -254,23 +249,15 @@ int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords)
         printf("pos: %d", pos);
         printf("recordCnt: %d", recordCnt);
         printf("recordDataLength: %d", recordDataLength);
-        // The record data starts at the 3rd position
-        for (int i=3; i<recordDataLength; i++)
+
+        // Decompress the data. Remember the record data starts at the 3rd position!
+        int output_len = decompress_data(&pDataRecords[pos+3], recordDataLength-3, output, sizeof(output));
+        for (int i=0; i<output_len; i++)
         {
-            printf("%x ", pDataRecords[pos+i]);
+            fputc(output[i], fOutput);
         }
-        printf("\r\n");
     }
     return 0;
-    // FILE *file;
-    // file = fopen("aux.data", "w+");
-    // if (file == NULL) 
-    // {
-    //     perror("Error opening file for write");
-    //     return -1;
-    // }
-    // fputs(pFlashdata->data, file);
-    // fclose(file);
 }
 
 /***************************************************************************//**
@@ -278,10 +265,11 @@ int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords)
 * @brief      The file provided is parsed using a state-machine
 *             Several error are considered, in such case the function
 *             return an error and show a printout describing it
-* @param [in] file - A FILE* to the file to be parsed
+* @param [in] fInput - A FILE* to the file to be parsed
+* @param [in] fOutput - A FILE* to store the result
 * @return     0 -Success, -1 -Error
 ******************************************************************************/
-int process_file(FILE* file)
+int process_file(FILE* fInput, FILE* fOutput)
 {
     char line[50];              // Buffer to store each line
     unsigned int bytes[16];     // Buffer to perform the data analysis
@@ -291,13 +279,13 @@ int process_file(FILE* file)
     int data_counter;
     cs_parser_T cs_parser = CS_LOOKING_FOR_BLOCK_START;  // The state variable for the parser
     
-    if (file == NULL)
+    if (fInput == NULL || fOutput == NULL)
     {
         return -1;
     }
 
     // Read every line through the file
-    while (fgets(line, sizeof(line), file) != NULL) 
+    while (fgets(line, sizeof(line), fInput) != NULL) 
     {
         // Remove trailing newline character if present
         line[strcspn(line, "\n")] = 0; 
@@ -429,7 +417,7 @@ int process_file(FILE* file)
                         if(data_counter >= flashdata.data_length)
                         {
                             // All the records has been read, go for the next block
-                            if(-1 == process_data_records(flashdata.number_records, flashdata.data))
+                            if(-1 == process_data_records(flashdata.number_records, flashdata.data, fOutput))
                             {
                                 return -1;
                             }
@@ -464,7 +452,7 @@ int process_file(FILE* file)
 int main() 
 {
     // Control variables
-    FILE *fInput;
+    FILE *fInput, *fOutput;
     
     // Open the file for reading operations
     // The filename is hardcoded. An improvement could be 
@@ -472,13 +460,22 @@ int main()
     fInput = fopen("INTDATA", "r");
     if (fInput == NULL) 
     {
-        perror("Error opening file");
+        perror("Error opening input file");
         return -1;
     }
 
-    int ret = process_file(fInput);
+    // Open the file to store the output
+    fOutput = fopen("output.txt", "w");
+    if (fOutput == NULL) 
+    {
+        perror("Error opening output file");
+        return -1;
+    }
+
+    int ret = process_file(fInput, fOutput);
 
     fclose(fInput);
+    fclose(fOutput);
     
     printf("Number of blocks: %d\n", statistics.blockCntr);
     printf("Number of blocks error: %d\n", statistics.blockErrCntr);

@@ -223,14 +223,14 @@ int process_data_records(uint16_t totalRecords, unsigned char* pDataRecords, FIL
         pos += recordDataLength;
         // Get the length of the record
         recordDataLength = pDataRecords[pos];
-        // printf("pos: %d\n", pos);
-        // printf("recordCnt: %d\n", recordCnt);
-        // printf("recordDataLength: %d\n", recordDataLength);
-        // for (int i=0; i<recordDataLength; i++)
-        // {
-        //     printf("%X ",pDataRecords[pos+i] );
-        // }
-        // printf("\n");
+        printf("pos: %d\n", pos);
+        printf("recordCnt: %d\n", recordCnt);
+        printf("recordDataLength: %d\n", recordDataLength);
+        for (int i=0; i<recordDataLength; i++)
+        {
+            printf("%X ",pDataRecords[pos+i] );
+        }
+        printf("\n");
 
         // Decompress the data. Remember the record data starts at the 3rd position!
         int output_len = decompress_data(&pDataRecords[pos+3], recordDataLength-3, output, sizeof(output));
@@ -447,7 +447,7 @@ int main()
     }
 
     // Open the file to store the output
-    fOutput = fopen("output.txt", "w");
+    fOutput = fopen("output.txt", "wb");
     if (fOutput == NULL) 
     {
         perror("Error opening output file");

@@ -3,7 +3,6 @@
  * @file main.c
  *
  *  Data parser and decompressor
- *  This is a technical challenge for Asentria
  *
  *------------------------------------------------------------------------------
  *

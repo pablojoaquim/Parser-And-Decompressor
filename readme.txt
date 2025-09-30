@@ -1,9 +1,3 @@
-# Asentria-TechnicalChallenge
-
-## Programming Exercise
-
-NOTE: ALL INFORMATION REQUIRED TO COMPLETE THE TASK IS INCLUDED IN THIS README FILE.
-
 The INTDATA file contains an hex-ASCII dump of binary data, with some header
 information for each block. This file was produced by extracting the binary data
 from a data collection unit running an Intel CPU, and saving it in human-readable
